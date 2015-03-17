@@ -1,0 +1,80 @@
+ArpCache	ArpCache.java	19
+ArpCache.ArpCache	ArpCache.java	/^	public ArpCache()$/
+ArpCache.Map	ArpCache.java	22
+ArpCache.entries	ArpCache.java	22
+ArpCache.insert	ArpCache.java	/^	public void insert(MACAddress mac, int ip)$/
+ArpCache.load	ArpCache.java	/^	public boolean load(String filename)$/
+ArpCache.lookup	ArpCache.java	/^	public ArpEntry lookup(int ip)$/
+ArpCache.toString	ArpCache.java	/^	public String toString()$/
+ArpEntry	ArpEntry.java	10
+ArpEntry.ArpEntry	ArpEntry.java	/^	public ArpEntry(MACAddress mac, int ip)$/
+ArpEntry.getIp	ArpEntry.java	/^	public int getIp()$/
+ArpEntry.getMac	ArpEntry.java	/^	public MACAddress getMac()$/
+ArpEntry.getTimeAdded	ArpEntry.java	/^	public long getTimeAdded()$/
+ArpEntry.ip	ArpEntry.java	16
+ArpEntry.mac	ArpEntry.java	13
+ArpEntry.timeAdded	ArpEntry.java	19
+ArpEntry.toString	ArpEntry.java	/^	public String toString()$/
+BufferedReader	RouteTable.java~	3
+ByteBuffer	Router.java~	3
+Collection	Router.java~	4
+Device	Router.java~	10
+DumpFile	Router.java~	11
+Ethernet	Router.java~	7
+FileNotFoundException	RouteTable.java~	4
+FileReader	RouteTable.java~	5
+IOException	RouteTable.java~	6
+IPv4	Router.java~	8
+IPv4	RouteTable.java~	12
+Iface	Router.java~	12
+Iface	RouteTable.java~	14
+Iterator	Router.java~	5
+LinkedList	RouteTable.java~	7
+List	RouteTable.java~	8
+MACAddress	Router.java~	9
+Matcher	RouteTable.java~	9
+Pattern	RouteTable.java~	10
+RouteEntry	RouteEntry.java	10
+RouteEntry.RouteEntry	RouteEntry.java	/^	public RouteEntry(int destinationAddress, int gat/
+RouteEntry.destinationAddress	RouteEntry.java	13
+RouteEntry.gatewayAddress	RouteEntry.java	16
+RouteEntry.getDestinationAddress	RouteEntry.java	/^	public int getDestinationAddress()$/
+RouteEntry.getGatewayAddress	RouteEntry.java	/^	public int getGatewayAddress()$/
+RouteEntry.getInterface	RouteEntry.java	/^	public Iface getInterface()$/
+RouteEntry.getMaskAddress	RouteEntry.java	/^	public int getMaskAddress()$/
+RouteEntry.iface	RouteEntry.java	23
+RouteEntry.maskAddress	RouteEntry.java	19
+RouteEntry.setGatewayAddress	RouteEntry.java	/^    public void setGatewayAddress(int gatewayAddre/
+RouteEntry.setInterface	RouteEntry.java	/^    public void setInterface(Iface iface)$/
+RouteEntry.toString	RouteEntry.java	/^	public String toString()$/
+RouteTable	RouteTable.java	20
+RouteTable	RouteTable.java~	20
+RouteTable	RouteTable.java~	/^	public RouteTable()$/
+RouteTable.RouteTable	RouteTable.java	/^	public RouteTable()$/
+RouteTable.entries	RouteTable.java	23
+RouteTable.find	RouteTable.java	/^    private RouteEntry find(int dstIp, int maskIp)/
+RouteTable.insert	RouteTable.java	/^	public void insert(int dstIp, int gwIp, int maskI/
+RouteTable.load	RouteTable.java	/^	public boolean load(String filename, Router route/
+RouteTable.lookup	RouteTable.java	/^	public RouteEntry lookup(int ip)$/
+RouteTable.remove	RouteTable.java	/^	public boolean remove(int dstIp, int maskIp)$/
+RouteTable.toString	RouteTable.java	/^	public String toString()$/
+RouteTable.update	RouteTable.java	/^	public boolean update(int dstIp, int maskIp, int /
+Router	Router.java	17
+Router.IPV4ETHERTYPE	Router.java	26
+Router.Router	Router.java	/^    public Router(String host, DumpFile logfile)$/
+Router.arpCache	Router.java	23
+Router.getRouteTable	Router.java	/^    public RouteTable getRouteTable()$/
+Router.handlePacket	Router.java	/^    public void handlePacket(Ethernet etherPacket,/
+Router.loadArpCache	Router.java	/^    public void loadArpCache(String arpCacheFile)$/
+Router.loadRouteTable	Router.java	/^    public void loadRouteTable(String routeTableFi/
+Router.routeTable	Router.java	20
+entries	RouteTable.java~	23
+find	RouteTable.java~	/^    private RouteEntry find(int dstIp, int maskIp)/
+insert	RouteTable.java~	/^	public void insert(int dstIp, int gwIp, int maskI/
+load	RouteTable.java~	/^	public boolean load(String filename, Router route/
+lookup	RouteTable.java~	/^	public RouteEntry lookup(int ip)$/
+remove	RouteTable.java~	/^	public boolean remove(int dstIp, int maskIp)$/
+rt	Router.java~	1
+rt	RouteTable.java~	1
+toString	RouteTable.java~	/^	public String toString()$/
+update	RouteTable.java~	/^	public boolean update(int dstIp, int maskIp, int /

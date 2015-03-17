@@ -1,0 +1,134 @@
+package edu.wisc.cs.sdn.vnet.sw;
+
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import net.floodlightcontroller.packet.Ethernet;
+import net.floodlightcontroller.packet.MACAddress;
+import edu.wisc.cs.sdn.vnet.Device;
+import edu.wisc.cs.sdn.vnet.DumpFile;
+import edu.wisc.cs.sdn.vnet.Iface;
+
+/**
+ * @author Aaron Gember-Jacobson
+ */
+public class Switch extends Device implements Runnable
+{
+    //Create a hashmap for mapping the interface with MAC address
+    private ConcurrentHashMap<MACAddress, Iface> forwardingTable;
+    private ConcurrentHashMap<MACAddress, Long> ftableTime;
+    private Collection<Iface> iFaces;
+    private Iterator<Iface> it;
+    private Long currTime;
+    private Thread flushThread;
+    private final long TIMEOUT;
+    
+    public void run(){
+	Long ttime;
+	try{
+	    while(true){
+		Thread.sleep(1000);
+
+		//wake up and check the table
+		ttime = System.nanoTime();
+
+		for(Map.Entry<MACAddress, Long> entry : ftableTime.entrySet()){
+		    if(ttime - entry.getValue() > TIMEOUT){
+			ftableTime.remove(entry.getKey());
+		    }
+		}
+	    }
+	}
+	catch(InterruptedException e){
+	    System.out.println("Exception caught: "+e);
+	}
+    }
+
+    public void start(){
+	if(flushThread == null){
+	    flushThread = new Thread(this, "ForwardingTableFlush");
+	    flushThread.start();
+	}
+    }
+
+    /**
+     * Creates a router for a specific host.
+     * @param host hostname for the router
+     */
+    public Switch(String host, DumpFile logfile)
+    {
+	super(host,logfile);
+	TIMEOUT = 15000000000L;
+	forwardingTable = new ConcurrentHashMap<MACAddress, Iface>();
+	ftableTime = new ConcurrentHashMap<MACAddress, Long>();
+	flushThread = new Thread(this, "ForwardingTableFlush");
+	flushThread.start();
+    }
+
+    /**
+     * Handle an Ethernet packet received on a specific interface.
+     * @param etherPacket the Ethernet packet that was received
+     * @param inIface the interface on which the packet was received
+     */
+    public void handlePacket(Ethernet etherPacket, Iface inIface)
+    {
+	currTime = System.nanoTime();
+	
+	//System.out.println("*** -> Received packet: " +
+	//		   etherPacket.toString().replace("\n", "\n\t"));
+	
+	/********************************************************************/
+	/* TODO: Handle packets                                             */
+	
+	MACAddress smac = etherPacket.getSourceMAC();
+	MACAddress dmac = etherPacket.getDestinationMAC();
+	Iface outIface = null;
+	
+	//if the dmac has not timed out
+	if(ftableTime.containsKey(dmac))
+		outIface = forwardingTable.get(dmac);
+	
+	if(outIface == null){
+	    
+	    //broadcast
+	    System.out.println("Broadcast\n");
+	    iFaces = interfaces.values();
+	    
+	    it = iFaces.iterator();
+	    Iface iface;
+	   
+ 	
+	    while(it.hasNext()){
+
+		iface = it.next();		
+		if(iface != inIface){
+		    sendPacket(etherPacket,iface);
+		}
+	    }
+	    
+	}
+	else{
+	    //forward to that particular interface
+	    sendPacket(etherPacket, outIface);
+	    System.out.println("Sent to iface: "+ outIface.toString()+" at "+System.currentTimeMillis()+"\n");
+	}
+	
+	//Learn the interface
+	if(!forwardingTable.containsKey(smac)){
+	    //create entry with the particular interface
+	    forwardingTable.put(smac, inIface);
+
+	    //create entry in the ftableTime
+	    ftableTime.put(smac,currTime);
+	}
+	else{
+	    //update only the time in ftableTime
+	    ftableTime.remove(smac);
+	    ftableTime.put(smac,currTime);
+	}
+	
+	/********************************************************************/
+    }
+}
