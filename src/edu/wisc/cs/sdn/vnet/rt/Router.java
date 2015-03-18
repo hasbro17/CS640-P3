@@ -294,6 +294,7 @@ public class Router extends Device
 		//ICMP Dest Net unreachable
 		if(routeEntry == null)
 		{
+			System.out.println("\nThe look up has failed");
 			Ethernet ether=null;
 			if( (ether=genICMPTimeExceeded(etherPacket, inIface)) != null )
 			{
