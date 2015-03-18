@@ -200,7 +200,7 @@ public class Router extends Device
 			arpReplyPacket.setProtocolType(ARP.PROTO_TYPE_IP);
 			
 			/**********************Check the parameter************************************/
-			arpReplyPacket.setHardwareAddressLength((byte)(Ethernet.DATALAYER_ADDRESS_LENGTH));
+			arpReplyPacket.setHardwareAddressLength((byte)(Ethernet.DATALAYER_ADDRESS_LENGTH & 0xff));
 			arpReplyPacket.setProtocolAddressLength((byte)4);
 			
 			arpReplyPacket.setOpCode(ARP.OP_REPLY);
