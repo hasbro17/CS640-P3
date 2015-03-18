@@ -212,6 +212,7 @@ public class Router extends Device
 			
 			// Send the reply through the interface through which we received the request
 			sendPacket(ether, inIface);
+			return;
 		}
 		else if(etherPacket.getEtherType()!= this.IPV4ETHERTYPE){
 			//Not IPv4 or ARP - drop the packet
