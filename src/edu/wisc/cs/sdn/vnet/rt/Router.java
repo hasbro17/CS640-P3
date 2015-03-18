@@ -191,6 +191,7 @@ public class Router extends Device
 			ARP arpReplyPacket = new ARP();
 			
 			//Set the fields for the Ethernet packet
+			ether.setEtherType(Ethernet.TYPE_ARP);
 			ether.setSourceMACAddress(inIface.getMacAddress().toBytes());
 			ether.setDestinationMACAddress(etherPacket.getSourceMACAddress());
 			
