@@ -166,6 +166,8 @@ public class Router extends Device
 		/* TODO: Handle packets                                             */
 
 		if(etherPacket.getEtherType() == Ethernet.TYPE_ARP){
+
+		    System.out.println("\nHandling the arp request");
 			//handle the ARP Packet
 			
 			ARP arpPacket = (ARP)etherPacket.getPayload();
@@ -210,6 +212,7 @@ public class Router extends Device
 			ether.setPayload(arpReplyPacket);
 			
 			// Send the reply through the interface through which we received the request
+			System.out.println("Before sending the arp reply");
 			sendPacket(ether, inIface);
 		}
 		else if(etherPacket.getEtherType()!= this.IPV4ETHERTYPE){
