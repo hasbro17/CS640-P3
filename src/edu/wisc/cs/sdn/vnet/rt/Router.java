@@ -200,14 +200,14 @@ public class Router extends Device
 			arpReplyPacket.setProtocolType(ARP.PROTO_TYPE_IP);
 			
 			/**********************Check the parameter************************************/
-			arpReplyPacket.setHardwareAddressLength((byte)(Ethernet.DATALAYER_ADDRESS_LENGTH & 0xff));
+			arpReplyPacket.setHardwareAddressLength((byte)(Ethernet.DATALAYER_ADDRESS_LENGTH));
 			arpReplyPacket.setProtocolAddressLength((byte)4);
 			
 			arpReplyPacket.setOpCode(ARP.OP_REPLY);
 			arpReplyPacket.setSenderHardwareAddress(inIface.getMacAddress().toBytes());
 			arpReplyPacket.setSenderHardwareAddress(IPv4.toIPv4AddressBytes(inIface.getIpAddress()));
 			arpReplyPacket.setTargetHardwareAddress(arpPacket.getSenderHardwareAddress());
-			arpReplyPacket.setTargetProtocolAddress(arpPacket.getTargetProtocolAddress());
+			arpReplyPacket.setTargetProtocolAddress(arpPacket.getSenderProtocolAddress());
 			
 			// Set the ARP Packet as the Ethernet packet payload 
 			ether.setPayload(arpReplyPacket);
