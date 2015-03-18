@@ -206,11 +206,37 @@ public class Router extends Device
 	Iterator<Iface> ifaceIt = interfaces.values().iterator();
 	Iface tIface = null;
 	
-	while(ifaceIt.hasNext()){
+	while(ifaceIt.hasNext())
+	{
 	    tIface = ifaceIt.next();
 	    if(tIface.getIpAddress() == ipv4Packet.getDestinationAddress()){
-		return;
-	    }
+		
+			Ethernet ether=genICMPTimeExceeded(etherPacket, inIface);
+			ICMP icmp=(ICMP) ether.getPayload().getPayload();
+			icmp.setIcmpType((byte)3);	
+		
+			//ICMP Destination Port Unreachable
+			if(ipv4Packet.getProtocol()==IPv4.PROTOCOL_TCP || ipv4Packet.getProtocol()==IPv4.PROTOCOL_UDP)
+			{
+				icmp.setIcmpCode((byte)3);
+				sendPacket(ether, inIface);
+			}
+			//Echo Reply
+			else if(ipv4Packet.getProtocol()==IPv4.PROTOCOL_ICMP)
+			{
+				ICMP icmpEchoReq=(ICMP) ipv4Packet.getPayload();	
+				if(icmpEchoReq.getIcmpType()==8)
+				{
+					IPv4 ip = (IPv4) ether.getPayload();
+					ip.setSourceAddress(ipv4Packet.getDestinationAddress());
+					icmp.setIcmpType((byte)0);
+					icmp.setIcmpCode((byte)0);
+					icmp.setPayload(icmpEchoReq.getPayload());
+					sendPacket(ether, inIface);
+				}
+			}
+			return;
+	   }
 	}
 	
 	//now forward the packet
@@ -224,8 +250,9 @@ public class Router extends Device
 		Ethernet ether=null;
 		if( (ether=genICMPTimeExceeded(etherPacket, inIface)) != null )
 		{
-			ether.getPayload().getPayload().setIcmpType((byte)3);
-			ether.getPayload().getPayload().setIcmpCode((byte)0);
+			ICMP icmp=(ICMP) ether.getPayload().getPayload();
+			icmp.setIcmpType((byte)3);
+			icmp.setIcmpCode((byte)0);
 	    	sendPacket(ether, inIface);
 		}
 	    return;
@@ -243,7 +270,21 @@ public class Router extends Device
 	    arpEntry = arpCache.lookup(ipv4Packet.getDestinationAddress());
 	else
 	    arpEntry = arpCache.lookup(routeEntry.getGatewayAddress());
-	
+
+	//ICMP Dest Host unreachable
+	if(arpEntry==null)
+	{
+		Ethernet ether=null;
+		if( (ether=genICMPTimeExceeded(etherPacket, inIface)) != null )
+		{
+			ICMP icmp=(ICMP) ether.getPayload().getPayload();
+			icmp.setIcmpType((byte)3);
+			icmp.setIcmpCode((byte)1);
+	    	sendPacket(ether, inIface);
+		}
+	    return;
+	}
+
 	MACAddress nextHopMAC = arpEntry.getMac();
 	
 	if( nextHopMAC == null){
