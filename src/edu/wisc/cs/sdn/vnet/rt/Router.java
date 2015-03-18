@@ -81,6 +81,77 @@ public class Router extends Device
 	System.out.println("----------------------------------");
     }
 
+
+    /**
+     * Generates ICMP Time Exceeded packet.
+     * @param ipv4Packet the incoming Ethernet packet for which this Time Exceeded is generated
+	 * @param inIface the interface of the incoming packet
+	 * @return null on error, ICMP ethernet packet on success
+     */
+	public Ethernet genICMPTimeExceeded(Ethernet etherPacket, Iface inIface){
+	
+		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
+
+		//Generate ICMP packet with required headers
+		Ethernet ether  = new Ethernet();
+		IPv4 ip = new  IPv4();
+		ICMP icmp = new ICMP();
+		Data data = new Data();
+		ether.setPayload(ip);
+		ip.setPayload(icmp);
+		icmp.setPayload(data);
+
+		
+		//Set ICMP header fields 
+		icmp.setIcmpType((byte)11);
+		icmp.setIcmpCode((byte)0);
+		//Prepare data for ICMP payload
+	    byte[] ipBytes = ipv4Packet.serialize();
+		int numIPBytes=ipv4Packet.getHeaderLength()*4 + 8;//IP header + 8 bytes following header
+		System.out.println("\n\n IP header length: "+numIPBytes+"\n\n");
+		
+		byte[] icmpData = new byte[4 + numIPBytes];//4 bytes extra for padding
+		for(int i=0; i<numIPBytes; i++)
+			icmpData[i+4]=ipBytes[i];
+		//Set ICMP data
+		data.setData(icmpData);
+
+
+		//Set IP header fields
+		ip.setTtl((byte)64);
+		ip.setProtocol(IPv4.PROTOCOL_ICMP);
+		ip.setSourceAddress(inIface.getIpAddress());
+		ip.setDestinationAddress(ipv4Packet.getSourceAddress());
+
+		//Set Mac header fields
+		ether.setEtherType(Ethernet.TYPE_IPv4);
+		ether.setSourceMACAddress(inIface.getMacAddress().toBytes());
+
+		//Dest Mac address is MAC of next hop from lookup in Route and Arp tables for the IP of the source ipv4Packet
+		RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getSourceAddress());
+		if(routeEntry == null){
+			System.out.println("ICMP return failed: route entry for received packet not found");
+	    	return null;
+		}
+	
+		//get the corresponding MAC for this IP address
+		ArpEntry arpEntry = null;	
+		
+		if(routeEntry.getGatewayAddress() == 0)
+			arpEntry = arpCache.lookup(ipv4Packet.getSourceAddress());
+		else
+			arpEntry = arpCache.lookup(routeEntry.getGatewayAddress());
+		
+		MACAddress nextHopMAC = arpEntry.getMac();
+		ether.setDestinationMACAddress(nextHopMAC.toBytes());
+
+		return ether;
+		//Send ICMP packet
+		//System.out.println("Sending back ICMP " + ether.toString().replace("\n", "\n\t"));
+	    //sendPacket(ether, inIface);
+	}
+
+
     /**
      * Handle an Ethernet packet received on a specific interface.
      * @param etherPacket the Ethernet packet that was received
@@ -101,64 +172,12 @@ public class Router extends Device
 	
 	IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
 	
-	//check the TTL
+	//check the TTL and send ICMP Time Exceeded message
 	if(ipv4Packet.getTtl() == 1){
-		//Generate ICMP packet with required headers
-		Ethernet ether  = new Ethernet();
-		IPv4 ip = new  IPv4();
-		ICMP icmp = new ICMP();
-		Data data = new Data();
-		ether.setPayload(ip);
-		ip.setPayload(icmp);
-		icmp.setPayload(data);
-		data.setData(icmpData);
 
-		
-		//Set ICMP header fields 
-		icmp.setIcmpType((byte)11);
-		icmp.setIcmpCode((byte)0);
-		//Prepare data for ICMP payload
-	    byte[] ipBytes = ipv4Packet.serialize();
-		int numIPBytes=ipv4Packet.getHeaderLength()*4 + 8;//IP header + 8 bytes following header
-		System.out.println("\n\n IP header length: "+numIPBytes+"\n\n");
-		
-		byte[] icmpData = new byte[4 + numIPBytes];//4 bytes extra for padding
-		for(int i=0; i<numIPBytes; i++)
-			icmpData[i+4]=ipBytes[i];
-
-
-		//Set IP header fields
-		ip.setTtl((byte)64);
-		ip.setProtocol(IPv4.PROTOCOL_ICMP);
-		ip.setSourceAddress(inIface.getIpAddress());
-		ip.setDestinationAddress(ipv4Packet.getSourceAddress());
-
-		//Set Mac header fields
-		ether.setEtherType(Ethernet.TYPE_IPv4);
-		ether.setSourceMACAddress(inIface.getMacAddress().toBytes());
-
-		//Dest Mac address is MAC of next hop from lookup in Route and Arp tables for the IP of the source ipv4Packet
-		RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getSourceAddress());
-		if(routeEntry == null){
-			System.out.println("ICMP return failed: route entry for received packet not found");
-	    	return;
-		}
-	
-		//get the corresponding MAC for this IP address
-		ArpEntry arpEntry = null;	
-		
-		if(routeEntry.getGatewayAddress() == 0)
-			arpEntry = arpCache.lookup(ipv4Packet.getSourceAddress());
-		else
-			arpEntry = arpCache.lookup(routeEntry.getGatewayAddress());
-		
-		MACAddress nextHopMAC = arpEntry.getMac();
-		ether.setDestinationMACAddress(nextHopMAC.toBytes());
-
-		//Send ICMP packet
-		System.out.println("Sending back ICMP " + ether.toString().replace("\n", "\n\t"));
-	    sendPacket(ether, inIface);
-
+		Ethernet ether=null;
+		if( (ether=genICMPTimeExceeded(etherPacket, inIface)) != null )
+	    	sendPacket(ether, inIface);
 	    return;
 	}
 	
@@ -198,8 +217,19 @@ public class Router extends Device
 	System.out.println("\nLooking to forward the packet");
 	RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getDestinationAddress());
 	
+
+	//ICMP Dest Net unreachable
 	if(routeEntry == null)
+	{
+		Ethernet ether=null;
+		if( (ether=genICMPTimeExceeded(etherPacket, inIface)) != null )
+		{
+			ether.getPayload().getPayload().setIcmpType((byte)3);
+			ether.getPayload().getPayload().setIcmpCode((byte)0);
+	    	sendPacket(ether, inIface);
+		}
 	    return;
+	}
 	
 	System.out.println("\nDestination address = "+IPv4.fromIPv4Address(routeEntry.getDestinationAddress()));
 	System.out.println("\nMask Address = "+IPv4.fromIPv4Address(routeEntry.getMaskAddress()));
