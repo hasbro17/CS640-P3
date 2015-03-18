@@ -205,7 +205,7 @@ public class Router extends Device
 			arpReplyPacket.setSenderHardwareAddress(inIface.getMacAddress().toBytes());
 			arpReplyPacket.setSenderHardwareAddress(IPv4.toIPv4AddressBytes(inIface.getIpAddress()));
 			arpReplyPacket.setTargetHardwareAddress(arpPacket.getSenderHardwareAddress());
-			arpReplyPacket.setTargetProtocolAddress(arpPacket.getTargetProtocolAddress());
+			arpReplyPacket.setTargetProtocolAddress(arpPacket.getSenderProtocolAddress());
 			
 			// Set the ARP Packet as the Ethernet packet payload 
 			ether.setPayload(arpReplyPacket);
