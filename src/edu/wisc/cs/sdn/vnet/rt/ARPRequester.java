@@ -21,12 +21,10 @@ public class ARPRequester implements Runnable{
 	private Ethernet arpReply;
 
 	public ARPRequester(Ethernet etherARPReq, Iface arpReqIface, Router rt) {
-		// TODO Auto-generated constructor stub
 		this.etherARPReq=etherARPReq;
 		this.arpReqIface=arpReqIface;
 		this.rt=rt;
-		done=false;
-		
+		done=false;		
 		waiting=new LinkedList<Ethernet>();
 		waitingIfaces=new LinkedList<Iface>();
 		waitingSrcMacs=new LinkedList<byte[]>();
@@ -36,12 +34,14 @@ public class ARPRequester implements Runnable{
 		return done;
 	}
 	
+	//The reply to be set when an ARP reply is recived for this requester by the router
 	public void setReply(Ethernet arpReply, Iface arpRepIface){
 		this.arpRepIface=arpRepIface;
 		this.arpReply=arpReply;
 		done=true;
 	}
 	
+	//Add a packet to the queue of waiting packets
 	public void add(Ethernet packet, Iface inIface, byte[] srcMac)
 	{
 		waiting.add(packet);
@@ -49,9 +49,10 @@ public class ARPRequester implements Runnable{
 		waitingSrcMacs.add(srcMac);
 	}
 
-	//Send 3 ARP requests in one second intervals
+	
 	public void run() {
 		int count=0;
+		//Send 3 ARP requests in one second intervals	
 		while(count<3)
 		{
 			//send ARPrequest
@@ -70,11 +71,10 @@ public class ARPRequester implements Runnable{
 		}
 		
 		done=true;
-		System.out.println("Requester thread finished sending requests");
-		////Then the reply made it in time, forward the queued packets to their destination
+
+		////If the ARP reply made it in time, forward the queued packets to their next hop
 		if(arpReply!=null)
 		{
-			System.out.println("Requester thread sending queued packets to correct destinations");
 			ARP arp=(ARP) arpReply.getPayload();
 			while(!waiting.isEmpty())
 			{
@@ -83,34 +83,26 @@ public class ARPRequester implements Runnable{
 				rt.sendPacket(etherPacket, arpRepIface);//send the packets forward on the iface the arpReply came in
 			}
 		}
-		//Reply back with ICMP Dest Host Unreachable to each of the hosts
+		//Else reply back with ICMP Dest Host Unreachable to each of the hosts who send a packet for this IP
 		else
 		{
-			System.out.println("Requester thread sending back ICMP for queued packets");
 			while(!waiting.isEmpty())
-			{
-				
-				//Get packet and the iface it came in on
+			{		
+				//Get packet, inIface and originalSrcMAC
 				Ethernet etherPacket=waiting.poll();
 				Iface inIface = waitingIfaces.poll();
 				byte[] origSrcMAC = waitingSrcMacs.poll();
-				System.out.println("\nFor packet: "+etherPacket.toString());
+				
 				//Generate ICMP dest host for each packet
 				Ethernet etherICMP= rt.genICMPTimeExceeded(etherPacket,inIface, origSrcMAC);
-				//Fix ether
-				//FIXME: Cannot generate ICMP timeout like this, set destination MAC address to src MAC address of packet
 				ICMP icmp=(ICMP) etherICMP.getPayload().getPayload();
 				icmp.setIcmpType((byte)3);
 				icmp.setIcmpCode((byte)1);
 				
-				System.out.println("\nRequester sending back ICMP packet: "+ etherICMP.toString());
-				System.out.println("\nRequester sending back on Iface: "+ inIface.toString());
-				
 				rt.sendPacket(etherICMP, inIface);
 			}
 		}
-		
 		return;
 	}
-
+	
 }

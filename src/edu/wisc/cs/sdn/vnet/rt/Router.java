@@ -28,7 +28,7 @@ public class Router extends Device
 	private final short IPV4ETHERTYPE = 0X0800;
 
 	
-	/** HashMap of IPs(key) resolved and their ARPreply(value) packets waiting **/
+	/** HashMap of IPs(key) resolved and their ARPRequester threads(value) packets waiting **/
 	private ConcurrentHashMap<Integer, ARPRequester> activeThreads= new ConcurrentHashMap<Integer, ARPRequester>();
 	
 	/**
@@ -136,11 +136,11 @@ public class Router extends Device
 	
 	/**
 	 * Generates ARP request packet.
-	 * @param etherPacket for which this arp reply is generated
-	 * @param inIface the interface of the incoming packet
+	 * @param etherPacket for which this arp request is generated
+	 * @param outIface the interface of to send this request out on
 	 * @return Ethernet packet with ARP payload for request
 	 */
-	public Ethernet genArpRequest(Ethernet etherPacket, Iface inIface)
+	public Ethernet genArpRequest(Ethernet etherPacket, Iface outIface)
 	{
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
 		
@@ -153,7 +153,7 @@ public class Router extends Device
 		
 		//Set the fields for the Ethernet packet
 		ether.setEtherType(Ethernet.TYPE_ARP);
-		ether.setSourceMACAddress(inIface.getMacAddress().toBytes());
+		ether.setSourceMACAddress(outIface.getMacAddress().toBytes());
 		ether.setDestinationMACAddress(broadcast);
 		
 		// Set the fields for the ARP Header
@@ -165,22 +165,18 @@ public class Router extends Device
 		arpRequestPacket.setProtocolAddressLength((byte)4);
 		
 		arpRequestPacket.setOpCode(ARP.OP_REQUEST);
-		arpRequestPacket.setSenderHardwareAddress(inIface.getMacAddress().toBytes());
-		//FIXME: Should this be the sender IP address. Shouldn't the sender of this request be the Iface i am sending the request from
-		arpRequestPacket.setSenderProtocolAddress(IPv4.toIPv4AddressBytes(inIface.getIpAddress()));
+		arpRequestPacket.setSenderHardwareAddress(outIface.getMacAddress().toBytes());
+		arpRequestPacket.setSenderProtocolAddress(IPv4.toIPv4AddressBytes(outIface.getIpAddress()));
 		arpRequestPacket.setTargetHardwareAddress(targHWAdd);
 		
-		
-		//FIXME: I need to set the targetProtocol as the IP of the next hop?
-		//Do a route lookup in the table to get the next hop IP for this packet
+		//Target Protocol is IP of next Hop
 		int nextHopIP;
 		RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getDestinationAddress());
 		if(routeEntry.getGatewayAddress()==0)
 			nextHopIP=ipv4Packet.getDestinationAddress();
 		else
 			nextHopIP=routeEntry.getGatewayAddress();
-		
-		//arpRequestPacket.setTargetProtocolAddress(ipv4Packet.getDestinationAddress());
+
 		arpRequestPacket.setTargetProtocolAddress(nextHopIP);
 		
 		// Set the ARP Packet as the Ethernet packet payload 
@@ -192,7 +188,7 @@ public class Router extends Device
 	
 
 	/**
-	 * Generates ICMP Time Exceeded packet.
+	 * Generates ICMP Time Exceeded packet. Can be tweaked for other ICMP message types
 	 * @param etherPacket the incoming Ethernet packet for which this Time Exceeded is generated
 	 * @param inIface the interface of the incoming packet
 	 * @param srcMacAddress the original source MAC address of the incoming packet, previous hop
@@ -211,7 +207,6 @@ public class Router extends Device
 		ip.setPayload(icmp);
 		icmp.setPayload(data);
 
-
 		//Set ICMP header fields 
 		icmp.setIcmpType((byte)11);
 		icmp.setIcmpCode((byte)0);
@@ -226,7 +221,6 @@ public class Router extends Device
 		//Set ICMP data
 		data.setData(icmpData);
 
-
 		//Set IP header fields
 		ip.setTtl((byte)64);
 		ip.setProtocol(IPv4.PROTOCOL_ICMP);
@@ -236,35 +230,10 @@ public class Router extends Device
 		//Set Mac header fields
 		ether.setEtherType(Ethernet.TYPE_IPv4);
 		ether.setSourceMACAddress(inIface.getMacAddress().toBytes());
-
-		//FIXME: NO need for all this reverse lookup, just send back to src MAC address
-		//Dest Mac address is MAC of next hop from lookup in Route and Arp tables for the IP of the source ipv4Packet
-		/*
-		RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getSourceAddress());
-		if(routeEntry == null){
-			System.out.println("ICMP return failed: route entry for received packet not found");
-			return null;
-		}
-
-		//get the corresponding MAC for this IP address
-		ArpEntry arpEntry = null;	
-
-		if(routeEntry.getGatewayAddress() == 0)
-			arpEntry = arpCache.lookup(ipv4Packet.getSourceAddress());
-		else
-			arpEntry = arpCache.lookup(routeEntry.getGatewayAddress());
-
-		MACAddress nextHopMAC = arpEntry.getMac();
 		
-		ether.setDestinationMACAddress(nextHopMAC.toBytes());
-		*/
-		//Send it back to the previous hop
+		//Destination MAC back to previous hop
 		ether.setDestinationMACAddress(srcMacAddress);
-		//ether.setDestinationMACAddress(etherPacket.getSourceMACAddress());
 		return ether;
-		//Send ICMP packet
-		//System.out.println("Sending back ICMP " + ether.toString().replace("\n", "\n\t"));
-		//sendPacket(ether, inIface);
 	}
 
 
@@ -309,62 +278,43 @@ public class Router extends Device
 				//Construct the ARP Reply
 				Ethernet ether = genArpReply(etherPacket, inIface);
 				// Send the reply through the interface through which we received the request
-				System.out.println("Before sending the arp reply");
-				sendPacket(ether, inIface);
-				return;
-				
+				sendPacket(ether, inIface);	
 			}
 			//ARP reply received
 			//Need to update ARP cache and insert ARPreply enqueued packets on their way
 			else{
 				System.out.println("\nGot Arp Reply");
-				//Arp cache should not already be populated for this ip
+
+				//Consider only if ARP cache value for this IP is missing
 				if(arpCache.lookup(senderIp)==null)
 				{
-					//FIXME: Should this be before or after checking if the thread has moved on???
-					
-					
 					//Check if the requester is still active
 					ARPRequester requester= activeThreads.get(senderIp);
 					if(requester==null)
-					{
-						System.out.println("No requester thread for senderIP");
-						//no requester actively resolving this targetIp
-						//ARP reply much too late, not needed now
 						return;
-					}
-					
-					
+						
 					//If requester is still waiting for replies from targetIp
 					//Then the reply made it in time, forward the queued packets to their destination 
 					if(!requester.isDone())
 					{
-						//Stop the ARP requester
+						//Stop the ARP requester and give it the ARP reply
 						requester.setReply(etherPacket, inIface);
 						//update ARP cache for future packets for this IP address
 						arpCache.insert(new MACAddress(arpPacket.getSenderHardwareAddress()), senderIp);
-						System.out.println("Requester thread given reply and arpcache updated");
 					}
-					//Requester has timed out before reply came
-					//Reply back with ICMP Dest Host Unreachable to each of the hosts
-					else
-					{
-						System.out.println("Requester thread already done");
-					}
+					//else the Requester has timed out before reply came, it will send ICMP Dest Host unreachable for all queued packets
 					//clear up requester for this IP
 					activeThreads.remove(senderIp);
 				}
-				
-				return;
 			}
-			
-			
+			return;
 		}
 		else if(etherPacket.getEtherType()!= this.IPV4ETHERTYPE){
 			//Not IPv4 or ARP - drop the packet
 			return;
 		}
 
+		
 		IPv4 ipv4Packet = (IPv4)etherPacket.getPayload();
 
 		//check the TTL and send ICMP Time Exceeded message
@@ -375,7 +325,6 @@ public class Router extends Device
 				sendPacket(ether, inIface);
 			return;
 		}
-
 
 		//calculate the checksum
 		short originalChecksum = ipv4Packet.getChecksum();
@@ -397,10 +346,9 @@ public class Router extends Device
 			return;
 		}
 
-		//find if the destination address matches one of the interfaces' ip
+		//Check if the packet's destination IP was for one of the router's interfaces
 		Iterator<Iface> ifaceIt = interfaces.values().iterator();
 		Iface tIface = null;
-
 		while(ifaceIt.hasNext())
 		{
 			tIface = ifaceIt.next();
@@ -434,11 +382,8 @@ public class Router extends Device
 			}
 		}
 
-		//now forward the packet
-		System.out.println("\nLooking to forward the packet");
+		//Look up route entry for forwarding packet
 		RouteEntry routeEntry = routeTable.lookup(ipv4Packet.getDestinationAddress());
-		
-
 
 		//ICMP Dest Net unreachable
 		if(routeEntry == null)
@@ -479,15 +424,12 @@ public class Router extends Device
 		//Set Source MAC Adress
 		etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
 		
-		//Only Destination MAC Address left
-		
 
-		//get the corresponding MAC for this IP address
+		//Find the corresponding destination MAC (next hop) for this IP address by an ARP lookup
 		ArpEntry arpEntry = null;
 		
 		//Next hop IP address
 		int nextHopIP;
-
 		if(routeEntry.getGatewayAddress() == 0)
 		{
 			arpEntry = arpCache.lookup(ipv4Packet.getDestinationAddress());
@@ -499,11 +441,9 @@ public class Router extends Device
 			nextHopIP=routeEntry.getGatewayAddress();
 		}
 
-		//Originally ICMP Dest Host unreachable
 		//Now generate ARP request for the IP address and queue any packets for any IP address being currently resolved
 		if(arpEntry==null)
 		{
-			System.out.println("ARP Entry not found for packet");
 			//check if requester exists and has not timed out(is not done)
 			if(activeThreads.containsKey(nextHopIP) 
 					&& !activeThreads.get(nextHopIP).isDone())
@@ -518,19 +458,17 @@ public class Router extends Device
 				//Generate the ARP request packet for the new requester thread
 				Ethernet etherARPReq = genArpRequest(etherPacket, routeEntry.getInterface());//inIface);
 				
-				//New ARP request object
+				//New ARP requester object
 				ARPRequester r = new ARPRequester(etherARPReq, routeEntry.getInterface(), this);
-				//Add packet and iface to waiting queue
+				//Add packet, inIface and srcMAC to waiting queues
 				r.add(etherPacket, inIface, originalSrcMAC);
-				//Put new requester object in global list of active objects for different IPs
-				//If an older object existed, it timed out and is replaced by the new one
+				//Put new requester object in global map of active requesters for IP addresses
+				//If an older object existed, it has timed out and is replaced by the new one
 				activeThreads.put(nextHopIP, r);
-				System.out.println("Router starting Requester thread with nextHopIP: "+ nextHopIP);
 				
 				//Start a thread for ARP request generation and move on.
 				Thread t= new Thread(r);
 				t.start();
-				
 			}
 			return;
 		}
